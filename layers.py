@@ -81,6 +81,63 @@ class ReLU(Layer):
             raise RuntimeError('Gradient cache not defined. When training the train argument must be set to true in the forward pass.')
         return dY * (self.cache_in >= 0), []
 
+class BatchNorm(Layer):
+    def __init__(self, input_dim):
+        self.input_dim = input_dim
+        self.beta = np.zeros((1, input_dim))
+        self.cache_in = None
+        self.running_mean = np.zeros((1, input_dim))
+
+    def forward(self, X, train=True):
+        if train:
+            mu = np.mean(X, axis=0, keepdims=True)
+            self.running_mean = 0.9 * self.running_mean + 0.1 * mu
+            out = X - mu + self.beta
+            return out
+        else:
+            out = X - self.running_mean + self.beta
+            return out
+
+    def backward(self, dY):
+        batch_size = dY.shape[0]
+        dbeta = np.sum(dY, axis=0, keepdims=True)
+        dxhat = dY
+        dmu = -1 * np.sum(dY, axis=0, keepdims=True)
+        dX =  dmu / batch_size + dxhat
+        return dX, [(self.beta, dbeta)]
+		
+class DilatedConvFlatten(Layer): 
+    '''
+    a brute force implementation of the dilated convolution forward pass, with additional reshaping
+    for ease of implementation, we assume that in_channels=1, as we only need to implement this for the first layer
+    convolution filters are initialized in a gaussian manner, similar to the linear layer
+    '''
+    def __init__(self, kernel, dfactor, out_channels):
+        self.kernel = kernel
+        self.dfactor = dfactor
+        self.out_channels = out_channels
+        self.in_shape = None
+
+        self.w = np.random.randn(kernel[0], kernel[1], out_channels) * np.sqrt(2.0 / (kernel[0] * kernel[1]))
+    
+    def forward(self, X, train=True):
+        if self.in_shape == None: self.in_shape = X.shape[1:3]
+        batch_size = X.shape[0]
+        
+        out_shape = (self.in_shape[0] - self.dfactor * (self.kernel[0] - 1), self.in_shape[1] - self.dfactor * (self.kernel[1] - 1))
+        out = np.zeros((batch_size, out_shape[0], out_shape[1], self.out_channels))
+        for c in range(self.out_channels):
+            for i in range(out_shape[0]):
+                for j in range(out_shape[1]):
+                    for a in range(self.kernel[0]):
+                        for b in range(self.kernel[1]):
+                            out[:,i,j,c] += self.w[a][b][c] * X[:,i+self.dfactor*a,j+self.dfactor*b]
+
+        return np.reshape(out, (batch_size, -1))
+
+    def backward(self, dY):
+        return np.zeros(self.in_shape), []
+
 class Loss(object):
     '''
     Abstract class representing a loss function

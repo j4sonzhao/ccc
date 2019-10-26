@@ -1,6 +1,6 @@
 import numpy as np
 
-from layers import Linear, ReLU, SoftmaxCrossEntropyLoss
+from layers import Linear, ReLU, SoftmaxCrossEntropyLoss, BatchNorm, DilatedConvFlatten
 from network import Network
 
 
@@ -16,6 +16,24 @@ def main():
 
     inputs, labels = load_normalized_mnist_data()
 
+    net = Network(learning_rate = 1e-3)
+    net.add_layer(BatchNorm(dim))
+    net.add_layer(Linear(dim, 256))
+    net.add_layer(ReLU())
+    net.add_layer(BatchNorm(256))
+    net.add_layer(Linear(256, 128))
+    net.add_layer(ReLU())
+    net.add_layer(BatchNorm(128))
+    net.add_layer(Linear(128, n_classes))
+    net.set_loss(SoftmaxCrossEntropyLoss())
+
+    train_network(net, inputs, labels, 250)
+    test_loss, test_acc = validate_network(net, inputs['test'], labels['test'],
+                                           batch_size=128)
+    print('MLP Network batch normalization:')
+    print('Test loss:', test_loss)
+    print('Test accuracy:', test_acc)
+
     # Define network without batch norm
     net = Network(learning_rate = 1e-3)
     net.add_layer(Linear(dim, 256))
@@ -25,13 +43,44 @@ def main():
     net.add_layer(Linear(128, n_classes))
     net.set_loss(SoftmaxCrossEntropyLoss())
 
-    train_network(net, inputs, labels, 50)
+    train_network(net, inputs, labels, 250)
     test_loss, test_acc = validate_network(net, inputs['test'], labels['test'],
                                            batch_size=128)
     print('Baseline MLP Network without batch normalization:')
     print('Test loss:', test_loss)
     print('Test accuracy:', test_acc)
 
+def run_dilated_conv():
+    
+    np.random.seed(42)
+    n_classes = 10
+
+    inputs, labels = load_normalized_mnist_data()
+    inputs['train'] = np.reshape(inputs['train'], (-1,28,28))
+    inputs['test'] = np.reshape(inputs['test'], (-1,28,28))
+    inputs['val'] = np.reshape(inputs['val'], (-1,28,28))
+
+    net = Network(learning_rate = 1e-3)
+    net.add_layer(DilatedConvFlatten((3,3), 2, 1))
+    '''
+    after reshaping, this gives us an output of (batch size, 576) given that our input is (batch size, 28, 28)
+    ideally, we would like to use more than 1 filter but this results in way too many neurons after reshaping
+    '''
+    net.add_layer(ReLU())
+    net.add_layer(Linear(576, 128))
+    net.add_layer(ReLU())
+    net.add_layer(Linear(128, n_classes))
+    net.set_loss(SoftmaxCrossEntropyLoss())
+
+    train_network(net, inputs, labels, 50)
+    test_loss, test_acc = validate_network(net, inputs['test'], labels['test'],
+                                           batch_size=128)
+    print('MLP Network with fixed dilated convolution layer:')
+    print('Test loss:', test_loss)
+    print('Test accuracy:', test_acc)
+    
+
+    
 
 def load_normalized_mnist_data():
     '''
@@ -155,3 +204,4 @@ def train_network(network, inputs, labels, n_epochs, batch_size=128):
 
 if __name__ == '__main__':
     main()
+    run_dilated_conv()
