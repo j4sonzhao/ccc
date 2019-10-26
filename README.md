@@ -1,3 +1,6 @@
+1. We create a new BatchNorm class in layers.py and test it in test_batchnorm.py. We implement a network with batchnorm in main() in main.py.
+2. We create a new DilatedConvFlatten class in layers.py and test it in test_dconv.py. We implement a network with dconv in run_dilated_conv() in main.py and run the function in this file.
+
 # mnist-numpy
 A basic fully connected network implemented purely in NumPy and trained on the MNIST dataset.
 
